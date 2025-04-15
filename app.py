@@ -27,7 +27,7 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 # Explicitly specify the default Firestore database
-db = firestore.client(database="(default)")
+db = firestore.client()
 os.makedirs("logs", exist_ok=True)
 
 # ---------- SESSION ----------
