@@ -18,22 +18,45 @@ tokyo_tz = pytz.timezone("Asia/Tokyo")
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
 
-@st.cache_resource
-def get_firestore_client():
-    """Initialize and return Firestore client - cached to prevent repeated initialization"""
-    firebase_info = json.loads(st.secrets["firebase_service_account"])
-    os.environ["GOOGLE_CLOUD_PROJECT"] = firebase_info.get('project_id', 'tmbc2025-e0646')
-    cred = service_account.Credentials.from_service_account_info(firebase_info)
-    
-    if not firebase_admin._apps:
+# Parse and load Firebase credentials from secrets
+firebase_info = json.loads(st.secrets["firebase_service_account"])
+
+# Set environment variable BEFORE any firebase import
+os.environ["GOOGLE_CLOUD_PROJECT"] = firebase_info.get('project_id', 'tmbc2025-e0646')
+
+# Create credentials
+cred = service_account.Credentials.from_service_account_info(firebase_info)
+
+# ---------- FIREBASE INIT ----------
+# Try initializing with explicit application name to avoid conflicts
+if not firebase_admin._apps:
+    try:
         firebase_admin.initialize_app(cred, {
             'projectId': firebase_info.get('project_id', 'tmbc2025-e0646')
         }, name='firestore_app')
-    
-    return firestore.client(app=firebase_admin.get_app(name='firestore_app'))
+        
+        # Debug the app to see what it contains
+        app = firebase_admin.get_app(name='firestore_app')
+        print(f"App name: {app.name}, Project ID: {app.project_id}")
+    except Exception as e:
+        print(f"Firebase init error: {e}")
 
-# Initialize once
-db = get_firestore_client()
+# Use the named app explicitly
+try:
+    app = firebase_admin.get_app(name='firestore_app')
+    db = firestore.client(app=app)
+except Exception as e:
+    print(f"Firestore client error: {e}")
+    # Fallback to try a different approach
+    try:
+        # Try directly creating the client with project
+        from google.cloud import firestore as google_firestore
+        db = google_firestore.Client(project=firebase_info.get('project_id', 'tmbc2025-e0646'))
+        print("Using direct Google Cloud Firestore client")
+    except Exception as e2:
+        print(f"Alternative client error: {e2}")
+        st.error("Failed to initialize Firestore. Check logs for details.")
+        st.stop()
 
 # ---------- SESSION ----------
 for k, v in {
