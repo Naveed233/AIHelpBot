@@ -29,3 +29,8 @@ An AI-powered programming assistant for students that offers up to 15 daily hint
    firebase_service_account = """
    { ...your firebase service account JSON... }
    """
+Install dependencies:
+   pip install -r requirements.txt
+
+Run the app:
+   streamlit run app.py
