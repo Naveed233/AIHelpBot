@@ -20,16 +20,26 @@ FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
 
 # Parse and load Firebase credentials from secrets
 firebase_info = json.loads(st.secrets["firebase_service_account"])
+
+# Debug information
+print("Firebase info keys:", list(firebase_info.keys()))
+print("Project ID in firebase_info:", firebase_info.get('project_id'))
+
+# Set environment variable for project ID
+os.environ["GOOGLE_CLOUD_PROJECT"] = "tmbc2025-e0646"
+
+# Create credentials
 cred = service_account.Credentials.from_service_account_info(firebase_info)
 
 # ---------- FIREBASE INIT ----------
 if not firebase_admin._apps:
     firebase_admin.initialize_app(cred, {
-        'projectId': firebase_info.get('project_id')
+        'projectId': "tmbc2025-e0646"  # Explicitly use your project ID
     })
 
 # Explicitly specify the default Firestore database
 db = firestore.client()
+
 os.makedirs("logs", exist_ok=True)
 
 # ---------- SESSION ----------
