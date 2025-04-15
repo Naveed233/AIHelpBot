@@ -14,44 +14,60 @@ from firebase_admin import firestore
 st.set_page_config(page_title="TSBC", layout="centered")
 tokyo_tz = pytz.timezone("Asia/Tokyo")
 
-# ---------- CACHED RESOURCES ----------
-@st.cache_resource
-def get_firestore_client():
-    """Initialize and return Firestore client - cached to prevent repeated initialization"""
-    # Set API Keys from Streamlit Secrets
-    openai.api_key = st.secrets["OPENAI_API_KEY"]
-    
-    # Parse and load Firebase credentials from secrets
-    firebase_info = json.loads(st.secrets["firebase_service_account"])
-    os.environ["GOOGLE_CLOUD_PROJECT"] = firebase_info.get('project_id', 'tmbc2025-e0646')
-    cred = service_account.Credentials.from_service_account_info(firebase_info)
-    
-    if not firebase_admin._apps:
+# Set API Keys from Streamlit Secrets
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
+
+# Parse and load Firebase credentials from secrets
+firebase_info = json.loads(st.secrets["firebase_service_account"])
+
+# Set environment variable BEFORE any firebase import
+os.environ["GOOGLE_CLOUD_PROJECT"] = firebase_info.get('project_id', 'tmbc2025-e0646')
+
+# Create credentials
+cred = service_account.Credentials.from_service_account_info(firebase_info)
+
+# ---------- FIREBASE INIT ----------
+# Try initializing with explicit application name to avoid conflicts
+if not firebase_admin._apps:
+    try:
         firebase_admin.initialize_app(cred, {
             'projectId': firebase_info.get('project_id', 'tmbc2025-e0646')
         }, name='firestore_app')
-    
-    return firestore.client(app=firebase_admin.get_app(name='firestore_app'))
+        
+        # Debug the app to see what it contains
+        app = firebase_admin.get_app(name='firestore_app')
+        print(f"App name: {app.name}, Project ID: {app.project_id}")
+    except Exception as e:
+        print(f"Firebase init error: {e}")
 
-# Initialize clients once
-db = get_firestore_client()
-FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
-os.makedirs("logs", exist_ok=True)
-
+# Use the named app explicitly
+try:
+    app = firebase_admin.get_app(name='firestore_app')
+    db = firestore.client(app=app)
+except Exception as e:
+    print(f"Firestore client error: {e}")
+    # Fallback to try a different approach
+    try:
+        # Try directly creating the client with project
+        from google.cloud import firestore as google_firestore
+        db = google_firestore.Client(project=firebase_info.get('project_id', 'tmbc2025-e0646'))
+        print("Using direct Google Cloud Firestore client")
+    except Exception as e2:
+        print(f"Alternative client error: {e2}")
+        st.error("Failed to initialize Firestore. Check logs for details.")
+        st.stop()
 # ---------- SESSION ----------
-# Initialize session state
-if "session_initialized" not in st.session_state:
-    st.session_state.update({
-        "session_initialized": True,
-        "user_email": "",
-        "authenticated": False,
-        "hint_number": 0,
-        "last_hint": "",
-        "user_name": "",
-        "user_language": "",
-        "user_data_cache": {},
-        "hint_history_cache": {}
-    })
+for k, v in {
+    "user_email": "",
+    "authenticated": False,
+    "hint_number": 0,
+    "last_hint": "",
+    "user_name": "",
+    "user_language": ""
+}.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 # ---------- AUTH ----------
 def firebase_auth_request(endpoint, payload):
@@ -70,52 +86,44 @@ def login_ui():
 
     if st.button(action):
         if action == "Login":
-            with st.spinner("Logging in..."):
-                payload = {"email": email, "password": password, "returnSecureToken": True}
-                r = firebase_auth_request("signInWithPassword", payload)
-                if r.status_code == 200:
-                    st.session_state.update({
-                        "user_email": email,
-                        "authenticated": True
-                    })
-                    # Load user info from Firestore
-                    doc = db.collection("users").document(email).get()
-                    if doc.exists:
-                        user_data = doc.to_dict()
-                        st.session_state["user_name"] = user_data.get("name", "")
-                        st.session_state["user_language"] = user_data.get("language", "")
-                        # Cache user data
-                        st.session_state["user_data_cache"][email] = user_data
-                    st.rerun()
-                else:
-                    st.error("Invalid credentials.")
+            payload = {"email": email, "password": password, "returnSecureToken": True}
+            r = firebase_auth_request("signInWithPassword", payload)
+            if r.status_code == 200:
+                st.session_state.update({
+                    "user_email": email,
+                    "authenticated": True
+                })
+                # Load user info from Firestore
+                doc = db.collection("users").document(email).get()
+                if doc.exists:
+                    user_data = doc.to_dict()
+                    st.session_state["user_name"] = user_data.get("name", "")
+                    st.session_state["user_language"] = user_data.get("language", "")
+                st.rerun()
+            else:
+                st.error("Invalid credentials.")
 
         elif action == "Sign Up":
             if not name or not lang:
                 st.warning("Please enter name and programming language.")
                 return
-            with st.spinner("Creating account..."):
-                payload = {"email": email, "password": password, "returnSecureToken": True}
-                r = firebase_auth_request("signUp", payload)
-                if r.status_code == 200:
-                    # Save new user info in Firestore
-                    user_data = {
-                        "name": name,
-                        "language": lang,
-                        "created": datetime.now(tokyo_tz).isoformat()
-                    }
-                    db.collection("users").document(email).set(user_data)
-                    # Cache user data
-                    st.session_state["user_data_cache"][email] = user_data
-                    st.success("Account created! Please log in.")
-                else:
-                    st.error("Sign-up failed. Email may already be used.")
+            payload = {"email": email, "password": password, "returnSecureToken": True}
+            r = firebase_auth_request("signUp", payload)
+            if r.status_code == 200:
+                # Save new user info in Firestore
+                db.collection("users").document(email).set({
+                    "name": name,
+                    "language": lang,
+                    "created": datetime.now(tokyo_tz).isoformat()
+                })
+                st.success("Account created! Please log in.")
+            else:
+                st.error("Sign-up failed. Email may already be used.")
 
         elif action == "Forgot Password":
-            with st.spinner("Sending reset email..."):
-                payload = {"requestType": "PASSWORD_RESET", "email": email}
-                r = firebase_auth_request("sendOobCode", payload)
-                st.success("Reset email sent." if r.status_code == 200 else "Error sending reset email.")
+            payload = {"requestType": "PASSWORD_RESET", "email": email}
+            r = firebase_auth_request("sendOobCode", payload)
+            st.success("Reset email sent." if r.status_code == 200 else "Error sending reset email.")
 
 def logout():
     st.session_state.update({
@@ -129,7 +137,6 @@ def logout():
     st.success("Logged out.")
 
 # ---------- HINT LOGIC ----------
-@st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_today_hint_count(email):
     now = datetime.now(tokyo_tz)
     reset_time = now.replace(hour=8, minute=0, second=0, microsecond=0)
@@ -147,20 +154,11 @@ def get_today_hint_count(email):
         st.stop()
 
 def get_all_hints_for_user(email):
-    # Check cache first
-    if email in st.session_state["hint_history_cache"]:
-        return st.session_state["hint_history_cache"][email]
-    
-    # If not in cache, fetch from Firestore
     docs = db.collection("hint_logs")\
         .where("email", "==", email)\
         .order_by("timestamp", direction=firestore.Query.DESCENDING)\
         .stream()
-    
-    hint_list = list(docs)
-    # Cache the results
-    st.session_state["hint_history_cache"][email] = hint_list
-    return hint_list
+    return list(docs)
 
 def create_hint(question: str, hint_number: int, lang: str) -> str:
     styles = [
@@ -181,12 +179,10 @@ def create_hint(question: str, hint_number: int, lang: str) -> str:
         f"Question: {question}\n\nHint:"
     )
 
-@st.cache_data(ttl=3600)  # Cache for an hour
 def get_gpt_hint(question, hint_number, lang):
     prompt = create_hint(question, hint_number, lang)
     if hint_number > 3:
         return prompt
-    
     res = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
@@ -199,11 +195,7 @@ def get_gpt_hint(question, hint_number, lang):
 def main_app():
     st.title("TSBC")
     question = st.text_area("Enter your programming question")
-    
-    # Use st.spinner for loading states
-    with st.spinner("Loading hint count..."):
-        hints_today = get_today_hint_count(st.session_state["user_email"])
-    
+    hints_today = get_today_hint_count(st.session_state["user_email"])
     hints_left = 15 - hints_today
     st.info(f"Hints remaining today: {hints_left}")
 
@@ -218,40 +210,33 @@ def main_app():
         return
 
     if st.button("Get Hint"):
-        with st.spinner("Generating hint..."):
-            current = st.session_state["hint_number"] + 1
-            st.session_state["hint_number"] = current
-            hint = get_gpt_hint(question, current, st.session_state["user_language"])
-            st.session_state["last_hint"] = hint
+        current = st.session_state["hint_number"] + 1
+        st.session_state["hint_number"] = current
+        hint = get_gpt_hint(question, current, st.session_state["user_language"])
+        st.session_state["last_hint"] = hint
 
-            timestamp = datetime.now(tokyo_tz).isoformat()
+        timestamp = datetime.now(tokyo_tz).isoformat()
 
-            # Save to Firebase
-            db.collection("hint_logs").add({
-                "email": st.session_state["user_email"],
-                "name": st.session_state["user_name"],
-                "language": st.session_state["user_language"],
-                "question": question,
-                "hint_text": hint,
-                "hint_number": current,
-                "timestamp": timestamp
-            })
+        db.collection("hint_logs").add({
+            "email": st.session_state["user_email"],
+            "name": st.session_state["user_name"],
+            "language": st.session_state["user_language"],
+            "question": question,
+            "hint_text": hint,
+            "hint_number": current,
+            "timestamp": timestamp
+        })
 
-            # Clear cache for this user's hints
-            if st.session_state["user_email"] in st.session_state["hint_history_cache"]:
-                del st.session_state["hint_history_cache"][st.session_state["user_email"]]
-
-            # Local log
-            with open("logs/chat_log.csv", "a", newline="", encoding="utf-8-sig") as f:
-                csv.writer(f).writerow([
-                    st.session_state["user_email"],
-                    st.session_state["user_name"],
-                    st.session_state["user_language"],
-                    question.replace("\n", " "),
-                    hint.replace("\n", " "),
-                    current,
-                    timestamp
-                ])
+        with open("logs/chat_log.csv", "a", newline="", encoding="utf-8-sig") as f:
+            csv.writer(f).writerow([
+                st.session_state["user_email"],
+                st.session_state["user_name"],
+                st.session_state["user_language"],
+                question.replace("\n", " "),
+                hint.replace("\n", " "),
+                current,
+                timestamp
+            ])
 
     if st.session_state["last_hint"]:
         st.markdown("### 🧠 Hint")
@@ -260,9 +245,7 @@ def main_app():
         st.success("💬 同じような疑問を持っている仲間のためにも、この質問を [Discourse フォーラム](https://forum.ms1.com/latest) に投稿してみましょう！")
 
     with st.expander("🕘 My Hint History"):
-        with st.spinner("Loading hint history..."):
-            history = get_all_hints_for_user(st.session_state["user_email"])
-        
+        history = get_all_hints_for_user(st.session_state["user_email"])
         if not history:
             st.info("No hint history found yet.")
         else:
