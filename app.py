@@ -14,7 +14,7 @@ from firebase_admin import firestore
 st.set_page_config(page_title="TSBC", layout="centered")
 tokyo_tz = pytz.timezone("Asia/Tokyo")
 
-# API Keys from secrets (Streamlit Cloud Secrets in .streamlit/secrets.toml)
+# Set API Keys from Streamlit Secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
 
@@ -22,11 +22,12 @@ FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
 firebase_info = json.loads(st.secrets["firebase_service_account"])
 cred = service_account.Credentials.from_service_account_info(firebase_info)
 
-# Initialize Firebase admin only once
+# ---------- FIREBASE INIT ----------
 if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
-db = firestore.client()
+# Explicitly specify the default Firestore database
+db = firestore.client(database="(default)")
 os.makedirs("logs", exist_ok=True)
 
 # ---------- SESSION ----------
@@ -65,7 +66,7 @@ def login_ui():
                     "user_email": email,
                     "authenticated": True
                 })
-                # Load additional user info from Firestore
+                # Load user info from Firestore
                 doc = db.collection("users").document(email).get()
                 if doc.exists:
                     user_data = doc.to_dict()
@@ -82,7 +83,7 @@ def login_ui():
             payload = {"email": email, "password": password, "returnSecureToken": True}
             r = firebase_auth_request("signUp", payload)
             if r.status_code == 200:
-                # Save user info to Firestore
+                # Save new user info in Firestore
                 db.collection("users").document(email).set({
                     "name": name,
                     "language": lang,
@@ -116,9 +117,9 @@ def get_today_hint_count(email):
         reset_time -= timedelta(days=1)
 
     try:
-        docs = db.collection("hint_logs") \
-            .where("email", "==", email) \
-            .where("timestamp", ">=", reset_time.isoformat()) \
+        docs = db.collection("hint_logs")\
+            .where("email", "==", email)\
+            .where("timestamp", ">=", reset_time.isoformat())\
             .stream()
         return sum(1 for _ in docs)
     except Exception:
@@ -126,9 +127,9 @@ def get_today_hint_count(email):
         st.stop()
 
 def get_all_hints_for_user(email):
-    docs = db.collection("hint_logs") \
-        .where("email", "==", email) \
-        .order_by("timestamp", direction=firestore.Query.DESCENDING) \
+    docs = db.collection("hint_logs")\
+        .where("email", "==", email)\
+        .order_by("timestamp", direction=firestore.Query.DESCENDING)\
         .stream()
     return list(docs)
 
@@ -171,7 +172,7 @@ def main_app():
     hints_left = 15 - hints_today
     st.info(f"Hints remaining today: {hints_left}")
 
-    # Display a button to encourage forum posting, only when no hint has been shown yet.
+    # Show a button encouraging forum posting if no hint has been generated yet.
     if st.session_state["last_hint"] == "":
         if st.button("💬 Discourse フォーラムに質問を投稿して、他の仲間の助けになろう！"):
             st.markdown("[→ Discourse に投稿する](https://forum.ms1.com/latest)", unsafe_allow_html=True)
@@ -201,9 +202,13 @@ def main_app():
 
         with open("logs/chat_log.csv", "a", newline="", encoding="utf-8-sig") as f:
             csv.writer(f).writerow([
-                st.session_state["user_email"], st.session_state["user_name"],
-                st.session_state["user_language"], question.replace("\n", " "),
-                hint.replace("\n", " "), current, timestamp
+                st.session_state["user_email"],
+                st.session_state["user_name"],
+                st.session_state["user_language"],
+                question.replace("\n", " "),
+                hint.replace("\n", " "),
+                current,
+                timestamp
             ])
 
     if st.session_state["last_hint"]:
