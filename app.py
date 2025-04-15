@@ -5,12 +5,15 @@ import pytz
 import openai
 from google.oauth2 import service_account
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import firestore
+import requests
+from datetime import datetime, timedelta
+import csv
 
 st.set_page_config(page_title="TSBC", layout="centered")
 
-openai.api_key = st.secrets("OPENAI_API_KEY")
-FIREBASE_API_KEY = st.secrets("FIREBASE_API_KEY")
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
 tokyo_tz = pytz.timezone("Asia/Tokyo")
 
 # ---------- FIREBASE INIT ----------
