@@ -24,7 +24,9 @@ cred = service_account.Credentials.from_service_account_info(firebase_info)
 
 # ---------- FIREBASE INIT ----------
 if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
+    firebase_admin.initialize_app(cred, {
+        'projectId': firebase_info.get('project_id')
+    })
 
 # Explicitly specify the default Firestore database
 db = firestore.client()
