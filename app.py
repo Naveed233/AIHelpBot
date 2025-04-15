@@ -3,30 +3,33 @@ import streamlit as st
 import os
 import pytz
 import openai
+import json
+import requests
+import csv
+from datetime import datetime, timedelta
+
 from google.oauth2 import service_account
 import firebase_admin
 from firebase_admin import firestore
-import requests
-from datetime import datetime, timedelta
-import csv
-import json
 
+# UI & Timezone
 st.set_page_config(page_title="TSBC", layout="centered")
-
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
 tokyo_tz = pytz.timezone("Asia/Tokyo")
 
-# Parse and load Firebase credentials
+# API Keys
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
+
+# Firebase Setup
 firebase_info = json.loads(st.secrets["firebase_service_account"])
 cred = service_account.Credentials.from_service_account_info(firebase_info)
 
-# ---------- FIREBASE INIT ----------
 if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
 os.makedirs("logs", exist_ok=True)
+
 
 # ---------- SESSION ----------
 for k, v in {
