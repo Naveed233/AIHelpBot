@@ -9,6 +9,7 @@ from firebase_admin import firestore
 import requests
 from datetime import datetime, timedelta
 import csv
+import json
 
 st.set_page_config(page_title="TSBC", layout="centered")
 
@@ -16,9 +17,12 @@ openai.api_key = st.secrets["OPENAI_API_KEY"]
 FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
 tokyo_tz = pytz.timezone("Asia/Tokyo")
 
+# Parse and load Firebase credentials
+firebase_info = json.loads(st.secrets["firebase_service_account"])
+cred = service_account.Credentials.from_service_account_info(firebase_info)
+
 # ---------- FIREBASE INIT ----------
 if not firebase_admin._apps:
-    cred = service_account.Credentials.from_service_account_info(st.secrets["firebase_service_account"])
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
