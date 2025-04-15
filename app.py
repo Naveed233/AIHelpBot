@@ -14,28 +14,24 @@ from firebase_admin import firestore
 st.set_page_config(page_title="TSBC", layout="centered")
 tokyo_tz = pytz.timezone("Asia/Tokyo")
 
-# Set API keys using secrets
+# Set API Keys using secrets (from .streamlit/secrets.toml)
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
 
+# ---------- FIREBASE INIT VIA CACHE ----------
 @st.cache_resource(show_spinner=False)
 def get_firestore_client():
-    """
-    Initialize and return the Firestore client.
-    This function is cached so that initialization happens only once.
-    """
+    # Parse and load Firebase credentials from secrets
     firebase_info = json.loads(st.secrets["firebase_service_account"])
-    # Set the GOOGLE_CLOUD_PROJECT environment variable
     os.environ["GOOGLE_CLOUD_PROJECT"] = firebase_info.get("project_id", "tmbc2025-e0646")
-    # Create credentials from the service account info
     cred = service_account.Credentials.from_service_account_info(firebase_info)
     
-    # Initialize the Firebase app if not already initialized
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(cred, {"projectId": firebase_info.get("project_id", "tmbc2025-e0646")}, name="firestore_app")
+    # Attempt to get the named app; if it doesn't exist, initialize it.
+    try:
+        app = firebase_admin.get_app("firestore_app")
+    except ValueError:
+        app = firebase_admin.initialize_app(cred, {"projectId": firebase_info.get("project_id", "tmbc2025-e0646")}, name="firestore_app")
     
-    # Get the initialized app and Firestore client
-    app = firebase_admin.get_app(name="firestore_app")
     return firestore.client(app=app)
 
 # Get cached Firestore client
