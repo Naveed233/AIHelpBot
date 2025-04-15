@@ -1,0 +1,6 @@
+streamlit
+openai
+firebase-admin
+python-dotenv
+requests
+pytz
