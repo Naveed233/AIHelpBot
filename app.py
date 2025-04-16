@@ -115,7 +115,7 @@ def get_today_hint_count(email):
     try:
         docs = db.collection("hint_logs")\
             .filter(filter=FieldFilter("email", "==", email))\
-            .filter(filter=FieldFilter("timestamp", ">=", reset_time))\
+            .filter(filter=FieldFilter("timestamp", ">=", reset_time.isoformat()))\
             .stream()
         return sum(1 for _ in docs)
     except Exception:
@@ -124,7 +124,7 @@ def get_today_hint_count(email):
 
 def get_all_hints_for_user(email):
     docs = db.collection("hint_logs")\
-        .where("email", "==", email)\
+        .filter(filter=FieldFilter("email", "==", email))\
         .order_by("timestamp", direction=firestore.Query.DESCENDING)\
         .stream()
     return list(docs)
