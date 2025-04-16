@@ -130,10 +130,19 @@ def get_all_hints_for_user(email):
 
 def create_hint(question: str, hint_number: int, lang: str) -> str:
     styles = [
-        "Provide the FIRST hint. A general nudge. No full solution. keep it relevant to programming/coding",
-        "Provide the SECOND hint. More guidance + similar example. keep it relevant to programming/coding",
-        "Provide the THIRD hint. Half-code. Encourage Discourse discussion. keep it relevant to programming/coding"
-    ]
+    # Hint 1: General nudge with structure hint
+    "Provide the FIRST hint. It should guide the student toward the correct data structure or syntax. \
+Do NOT give the answer. Give a generic structure-related tip in the target language.",
+    
+    # Hint 2: Medium hint with structural example (different problem)
+    "Provide the SECOND hint. Offer a structure-based example solving a DIFFERENT but similar problem \
+(e.g., creating a list of animals). Show code example in the target language and explain briefly.",
+
+    # Hint 3: Strong hint with partial solution, NO full answer
+    "Provide the THIRD hint. Give a partial solution or skeleton code for the student’s problem. \
+DO NOT give a full answer. Finish by encouraging them to share their problem on Discourse."
+]
+
     if hint_number > 3:
         return (
             "You've used all 15 hints for today.\n\n"
