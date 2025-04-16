@@ -105,31 +105,28 @@ def logout():
         st.session_state[key] = "" if isinstance(st.session_state[key], str) else False
     st.success("Logged out.")
 
-
 def get_today_hint_count(email):
     now = datetime.now(tokyo_tz)
     reset_time = now.replace(hour=8, minute=0, second=0, microsecond=0)
     if now < reset_time:
         reset_time -= timedelta(days=1)
-    
+
     try:
-        # First get all docs with matching email
-        docs = db.collection("hint_logs").filter(filter=FieldFilter("email", "==", email)).stream()
-        # Then filter in memory for timestamp
-        reset_time_iso = reset_time.isoformat()
-        return sum(1 for doc in docs if doc.to_dict().get("timestamp", "") >= reset_time_iso)
-    except Exception as e:
-        st.error(f"⚠️ Database error: {str(e)}")
+        docs = db.collection("hint_logs")\
+            .where("email", "==", email)\
+            .where("timestamp", ">=", reset_time.isoformat())\
+            .stream()
+        return sum(1 for _ in docs)
+    except Exception:
+        st.error("⚠️ Firestore index missing. Please follow the setup link.")
         st.stop()
 
 def get_all_hints_for_user(email):
     docs = db.collection("hint_logs")\
-        .filter(filter=FieldFilter("email", "==", email))\
+        .where("email", "==", email)\
         .order_by("timestamp", direction=firestore.Query.DESCENDING)\
         .stream()
-    return list(docs)
-
-def create_hint(question: str, hint_number: int, lang: str) -> str:
+    return list(docs)def create_hint(question: str, hint_number: int, lang: str) -> str:
     styles = [
         "Provide the FIRST hint. A general nudge. No full solution.",
         "Provide the SECOND hint. More guidance + similar example.",
