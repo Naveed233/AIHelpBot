@@ -130,9 +130,9 @@ def get_all_hints_for_user(email):
 
 def create_hint(question: str, hint_number: int, lang: str) -> str:
     styles = [
-        "Provide the FIRST hint. A general nudge. No full solution.",
-        "Provide the SECOND hint. More guidance + similar example.",
-        "Provide the THIRD hint. Half-code. Encourage Discourse discussion."
+        "Provide the FIRST hint. A general nudge. No full solution. keep it relevant to programming/coding",
+        "Provide the SECOND hint. More guidance + similar example. keep it relevant to programming/coding",
+        "Provide the THIRD hint. Half-code. Encourage Discourse discussion. keep it relevant to programming/coding"
     ]
     if hint_number > 3:
         return (
