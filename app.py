@@ -11,7 +11,6 @@ import firebase_admin
 from firebase_admin import firestore
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
-from google.cloud.firestore_v1.base_query import FieldFilter
 
 st.set_page_config(page_title="TSBC", layout="centered")
 tokyo_tz = pytz.timezone("Asia/Tokyo")
@@ -105,6 +104,7 @@ def logout():
         st.session_state[key] = "" if isinstance(st.session_state[key], str) else False
     st.success("Logged out.")
 
+# ---------- HINT LOGIC ----------
 def get_today_hint_count(email):
     now = datetime.now(tokyo_tz)
     reset_time = now.replace(hour=8, minute=0, second=0, microsecond=0)
@@ -117,8 +117,8 @@ def get_today_hint_count(email):
             .where("timestamp", ">=", reset_time.isoformat())\
             .stream()
         return sum(1 for _ in docs)
-    except Exception:
-        st.error("⚠️ Firestore index missing. Please follow the setup link.")
+    except Exception as e:
+        st.error(f"⚠️ Firestore index missing. Please follow the setup link. Error: {str(e)}")
         st.stop()
 
 def get_all_hints_for_user(email):
@@ -126,7 +126,9 @@ def get_all_hints_for_user(email):
         .where("email", "==", email)\
         .order_by("timestamp", direction=firestore.Query.DESCENDING)\
         .stream()
-    return list(docs)def create_hint(question: str, hint_number: int, lang: str) -> str:
+    return list(docs)
+
+def create_hint(question: str, hint_number: int, lang: str) -> str:
     styles = [
         "Provide the FIRST hint. A general nudge. No full solution.",
         "Provide the SECOND hint. More guidance + similar example.",
