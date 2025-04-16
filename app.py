@@ -12,7 +12,7 @@ from firebase_admin import firestore
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
-st.set_page_config(page_title="TSBC", layout="centered")
+st.set_page_config(page_title="TSBC Hint Bot :)", layout="centered")
 tokyo_tz = pytz.timezone("Asia/Tokyo")
 
 # Set API Keys using secrets
@@ -161,7 +161,7 @@ def get_gpt_hint(question, hint_number, lang):
 
 # ---------- MAIN APP ----------
 def main_app():
-    st.title("TSBC")
+    st.title("TSBC Hint Bot")
     question = st.text_area("Enter your programming question")
     hints_today = get_today_hint_count(st.session_state["user_email"])
     hints_left = 15 - hints_today
@@ -183,6 +183,7 @@ def main_app():
         st.session_state["last_hint"] = hint
 
         timestamp = datetime.now(tokyo_tz)
+        timestamp_str = timestamp.isoformat()  # Convert to string
 
         db.collection("hint_logs").add({
             "email": st.session_state["user_email"],
@@ -191,7 +192,7 @@ def main_app():
             "question": question,
             "hint_text": hint,
             "hint_number": current,
-            "timestamp": timestamp
+            "timestamp": timestamp_str  # Store as string
         })
 
         with open("logs/chat_log.csv", "a", newline="", encoding="utf-8-sig") as f:
@@ -218,10 +219,17 @@ def main_app():
         else:
             for doc in history:
                 data = doc.to_dict()
+                # Handle timestamp display safely
+                timestamp_str = data.get('timestamp', '')
+                if isinstance(timestamp_str, datetime):
+                    timestamp_str = timestamp_str.isoformat()
+                
+                date_display = timestamp_str[:10] if timestamp_str else "Unknown date"
+                
                 st.markdown(f"""
-                **🗓 Date:** {data['timestamp'][:10]}  
-                **📌 Question:** {data['question']}  
-                **💡 Hint:** {data['hint_text']}  
+                **🗓 Date:** {date_display}  
+                **📌 Question:** {data.get('question', '')}  
+                **💡 Hint:** {data.get('hint_text', '')}  
                 ---
                 """)
 
