@@ -90,7 +90,7 @@ def login_ui():
                 db.collection("users").document(email).set({
                     "name": name,
                     "language": lang,
-                    "created": datetime.now(tokyo_tz).isoformat()
+                    "created": datetime.now(tokyo_tz)
                 })
                 st.success("Account created! Please log in.")
             else:
@@ -115,7 +115,7 @@ def get_today_hint_count(email):
     try:
         docs = db.collection("hint_logs")\
             .filter(filter=FieldFilter("email", "==", email))\
-            .filter(filter=FieldFilter("timestamp", ">=", reset_time.isoformat()))\
+            .filter(filter=FieldFilter("timestamp", ">=", reset_time))\
             .stream()
         return sum(1 for _ in docs)
     except Exception:
@@ -183,7 +183,7 @@ def main_app():
         hint = get_gpt_hint(question, current, st.session_state["user_language"])
         st.session_state["last_hint"] = hint
 
-        timestamp = datetime.now(tokyo_tz).isoformat()
+        timestamp = datetime.now(tokyo_tz)
 
         db.collection("hint_logs").add({
             "email": st.session_state["user_email"],
@@ -203,7 +203,7 @@ def main_app():
                 question.replace("\n", " "),
                 hint.replace("\n", " "),
                 current,
-                timestamp
+                timestamp.isoformat()
             ])
 
     if st.session_state["last_hint"]:
