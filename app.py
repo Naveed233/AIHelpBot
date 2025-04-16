@@ -2,7 +2,6 @@
 import streamlit as st
 import os
 import pytz
-import openai
 import json
 import requests
 import csv
@@ -17,9 +16,9 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 st.set_page_config(page_title="TSBC", layout="centered")
 tokyo_tz = pytz.timezone("Asia/Tokyo")
 
-# Set API Keys using secrets (from .streamlit/secrets.toml)
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-client = OpenAI(api_key=openai.api_key)
+# Set API Keys using secrets
+openai_api_key = st.secrets["OPENAI_API_KEY"]
+client = OpenAI(api_key=openai_api_key)
 FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
 
 # ---------- FIREBASE INIT VIA CACHE ----------
@@ -120,7 +119,7 @@ def get_today_hint_count(email):
             .stream()
         return sum(1 for _ in docs)
     except Exception:
-        st.error("\u26a0\ufe0f Firestore index missing. Please follow the setup link.")
+        st.error("⚠️ Firestore index missing. Please follow the setup link.")
         st.stop()
 
 def get_all_hints_for_user(email):
@@ -139,10 +138,10 @@ def create_hint(question: str, hint_number: int, lang: str) -> str:
     if hint_number > 3:
         return (
             "You've used all 15 hints for today.\n\n"
-            "\ud83d\udd57 Your limit resets at 8AM Tokyo time tomorrow.\n"
+            "🕗 Your limit resets at 8AM Tokyo time tomorrow.\n"
             "Please consider posting your question on the Discourse forum: https://forum.ms1.com/latest"
         )
-    instruction = "Japanese first, then English." if lang.startswith("\u65e5\u672c\u8a9e") else "English first, then Japanese."
+    instruction = "Japanese first, then English." if lang.startswith("日本語") else "English first, then Japanese."
     return (
         f"You are a helpful Python teacher. Provide the hint in {instruction}\n"
         f"{styles[hint_number - 1]}\n\n"
@@ -170,12 +169,12 @@ def main_app():
     st.info(f"Hints remaining today: {hints_left}")
 
     if st.session_state["last_hint"] == "":
-        if st.button("\ud83d\udcac Discourse \u30d5\u30a9\u30fc\u30e9\u30e0\u306b\u8cea\u554f\u3092\u6295\u7a3f\u3057\u3066\u3001\u4ed6\u306e\u4ef2\u9593\u306e\u52a9\u3051\u306b\u306a\u308d\u3046\uff01"):
-            st.markdown("[\u2192 Discourse \u306b\u6295\u7a3f\u3059\u308b](https://forum.ms1.com/latest)", unsafe_allow_html=True)
+        if st.button("💬 Discourse フォーラムに質問を投稿して、他の仲間の助けになろう！"):
+            st.markdown("[→ Discourse に投稿する](https://forum.ms1.com/latest)", unsafe_allow_html=True)
 
     if hints_left <= 0:
-        st.warning("\u26d4\ufe0f Your hint quota is finished for the day. It will reset at 8AM Tokyo time tomorrow.")
-        st.markdown("\u261b Please consider sharing your question on the [Discourse forum](https://forum.ms1.com/latest)")
+        st.warning("⛔ Your hint quota is finished for the day. It will reset at 8AM Tokyo time tomorrow.")
+        st.markdown("👉 Please consider sharing your question on the [Discourse forum](https://forum.ms1.com/latest)")
         return
 
     if st.button("Get Hint"):
@@ -208,12 +207,12 @@ def main_app():
             ])
 
     if st.session_state["last_hint"]:
-        st.markdown("### \ud83e\uddd0 Hint")
+        st.markdown("### 🧠 Hint")
         st.markdown(st.session_state["last_hint"])
         st.markdown("---")
-        st.success("\ud83d\udcac \u540c\u3058\u3088\u3046\u306a\u7591\u554f\u3092\u6301\u3063\u3066\u3044\u308b\u4ef2\u9593\u306e\u305f\u3081\u306b\u3082\u3001\u3053\u306e\u8cea\u554f\u3092 [Discourse \u30d5\u30a9\u30fc\u30e9\u30e0](https://forum.ms1.com/latest) \u306b\u6295\u7a3f\u3057\u3066\u307f\u307e\u3057\u3087\u3046\uff01")
+        st.success("💬 同じような疑問を持っている仲間のためにも、この質問を [Discourse フォーラム](https://forum.ms1.com/latest) に投稿してみましょう！")
 
-    with st.expander("\ud83d\udd58 My Hint History"):
+    with st.expander("🕘 My Hint History"):
         history = get_all_hints_for_user(st.session_state["user_email"])
         if not history:
             st.info("No hint history found yet.")
@@ -221,9 +220,9 @@ def main_app():
             for doc in history:
                 data = doc.to_dict()
                 st.markdown(f"""
-                **\ud83d\uddd3 Date:** {data['timestamp'][:10]}  
-                **\ud83d\udccc Question:** {data['question']}  
-                **\ud83d\udca1 Hint:** {data['hint_text']}  
+                **🗓 Date:** {data['timestamp'][:10]}  
+                **📌 Question:** {data['question']}  
+                **💡 Hint:** {data['hint_text']}  
                 ---
                 """)
 
